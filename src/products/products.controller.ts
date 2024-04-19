@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -11,10 +10,12 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { ClientProxy, RpcException } from '@nestjs/microservices';
 import { firstValueFrom } from 'rxjs';
 import { PaginationDto } from 'src/common';
 import { PRODUCT_SERVICE } from 'src/config';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
 
 @Controller('products')
 export class ProductsController {
@@ -23,8 +24,14 @@ export class ProductsController {
   ) {}
 
   @Post()
-  createProduct() {
-    return 'Crea un producto';
+  async createProduct(@Body() createProductDto: CreateProductDto) {
+    try {
+      return await firstValueFrom(
+        this.productsClient.send({ cmd: 'create_product' }, createProductDto),
+      );
+    } catch (error) {
+      throw new RpcException(error);
+    }
   }
 
   @Get()
@@ -35,22 +42,45 @@ export class ProductsController {
   @Get(':id')
   async findOne(@Param('id', ParseIntPipe) id: number) {
     try {
-      const product = await firstValueFrom(
+      return await firstValueFrom(
         this.productsClient.send({ cmd: 'find_one_product' }, { id }),
       );
-      return product;
     } catch (error) {
-      throw new BadRequestException(error);
+      throw new RpcException(error);
+    }
+
+    // -- EJEMPLO DE COMO MANEJAR EL OBSERVABLE SIN TRYCATCH --
+
+    // return this.productsClient.send({ cmd: 'find_one_product' }, { id }).pipe(
+    //   catchError((err) => {
+    //     throw new RpcException(err);
+    //   }),
+    // );
+  }
+
+  @Patch(':id')
+  async updateProduct(
+    @Body() updateProductDto: UpdateProductDto,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    try {
+      const payload = { id, ...updateProductDto };
+      return await firstValueFrom(
+        this.productsClient.send({ cmd: 'update_product' }, payload),
+      );
+    } catch (error) {
+      throw new RpcException(error);
     }
   }
 
   @Delete(':id')
-  deleteProduct(@Param('id', ParseIntPipe) id: number) {
-    return `Elimina un producto con id: ${id}`;
-  }
-
-  @Patch(':id')
-  updateProduct(@Body() body: any, @Param('id', ParseIntPipe) id: number) {
-    return `Edita un producto con id: ${id}`;
+  async deleteProduct(@Param('id', ParseIntPipe) id: number) {
+    try {
+      return await firstValueFrom(
+        this.productsClient.send({ cmd: 'delete_product' }, { id }),
+      );
+    } catch (error) {
+      throw new RpcException(error);
+    }
   }
 }
